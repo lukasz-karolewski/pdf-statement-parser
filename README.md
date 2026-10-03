@@ -148,10 +148,10 @@ lines are added into `earned` and are not exported separately.
 
 | Bank | Statement type | Status |
 | --- | --- | --- |
-| Chase | Credit cards | See `docs/providers/chase.md`. |
-| Chase | Checking and savings | See `docs/providers/chase.md`. |
-| Chase | Consolidated personal statements | See `docs/providers/chase.md`. |
-| Chase | Business checking and savings | See `docs/providers/chase.md`. |
+| Chase | Credit cards, including rewards | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
+| Chase | Checking and savings | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
+| Chase | Consolidated personal statements | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
+| Chase | Business checking | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
 
 ## Detection
 
