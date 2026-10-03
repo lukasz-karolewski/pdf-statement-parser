@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a parser, CLI, or packaging bug
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not upload real bank statements. Do not paste raw statement text.
+        If statement text is needed, run `statement-parser dump` locally and
+        replace names, addresses, account numbers, and amounts before sharing.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include commands and redacted output when useful.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: pdf-statement-parser 0.1.0
+  - type: textarea
+    id: redacted-dump
+    attributes:
+      label: Redacted dump output
+      description: Replace names, addresses, account numbers, and amounts.
+      render: text

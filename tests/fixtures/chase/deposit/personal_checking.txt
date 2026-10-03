@@ -1,0 +1,29 @@
+000000123456789
+CUSTOMER SERVICE INFORMATION
+12000000000000000000
+December 15, 2025throughJanuary 14, 2026
+JPMorgan Chase Bank, N.A.
+JANE Q SAMPLE Account Number: 000000123456789
+123 EXAMPLE ST
+SAMPLE CITY CA 90000
+*start*summary
+Chase Total Checking
+CHECKING SUMMARY
+AMOUNT
+Beginning Balance $100.00
+Deposits and Additions 250.00
+ATM & Debit Card Withdrawals -20.00
+Electronic Withdrawals -30.00
+Fees -5.00
+Ending Balance $295.00
+*start*transaction detail
+TRANSACTION DETAIL
+DATE DESCRIPTION AMOUNT BALANCE
+Beginning Balance $100.00
+12/20 ACME PAYROLL PPD ID: 0000000000 200.00 300.00
+01/02 Online Transfer From Chk ...1111 Transaction#: 0000000000 50.00 350.00
+01/05 Card Purchase With Pin 01/05 EXAMPLE MARKET SAMPLE CA Card 0000 -20.00 330.00
+01/10 SAMPLE UTILITY WEB ID: 0000000000 -30.00 300.00
+01/14 Monthly Service Fee -5.00 295.00
+Ending Balance $295.00
+*end*transaction detail

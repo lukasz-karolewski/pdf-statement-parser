@@ -3,7 +3,7 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "statement-parser"
+name = "pdf-statement-parser"
 dynamic = ["version"]
 description = "Extract account metadata and transactions from bank and credit card PDF statements, with a plugin per statement format."
 readme = "README.md"
@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Office/Business :: Financial",
     "Typing :: Typed",
 ]
@@ -34,20 +35,21 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.10",
     "fpdf2>=2.7",
+    "pre-commit>=3.7",
 ]
 
 [project.scripts]
-statement-parser = "statement_parser.cli:main"
+statement-parser = "pdf_statement_parser.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/lkarolewski/statement-parser"
-Issues = "https://github.com/lkarolewski/statement-parser/issues"
+Homepage = "https://github.com/lukasz-karolewski/statement-parser"
+Issues = "https://github.com/lukasz-karolewski/statement-parser/issues"
 
 [tool.hatch.version]
-path = "src/statement_parser/__about__.py"
+path = "src/pdf_statement_parser/__about__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/statement_parser"]
+packages = ["src/pdf_statement_parser"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -65,7 +67,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.10"
 strict = true
-packages = ["statement_parser"]
+packages = ["pdf_statement_parser"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]

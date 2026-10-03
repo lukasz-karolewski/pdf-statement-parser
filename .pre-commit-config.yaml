@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-toml
+      - id: check-added-large-files
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: forbid-private-pdfs
+        name: forbid private PDFs outside tests/fixtures
+        entry: bash -c 'for f in "$@"; do case "$f" in *.pdf|*.PDF) case "$f" in tests/fixtures/*) ;; *) echo "PDF files must stay out of the repo unless they are synthetic fixtures under tests/fixtures: $f"; exit 1;; esac;; esac; done' --
+        language: system
+        pass_filenames: true
+        types: [file]

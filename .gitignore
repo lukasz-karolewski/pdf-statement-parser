@@ -25,3 +25,7 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+# Local scratch output from parser/corpus runs (may contain private data)
+.*output*.txt
+*-report*.json
