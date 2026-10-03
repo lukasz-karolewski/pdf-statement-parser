@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -167,6 +169,37 @@ def test_batch_errors_continue(example_pdf: Path, capsys: pytest.CaptureFixture[
     captured = capsys.readouterr()
     assert "example-bank" in captured.out
     assert "path does not exist" in captured.err
+
+
+def test_parallel_jobs_keep_input_order_and_collect_errors(
+    example_pdf: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Worker processes would not see the patched registry; threads exercise the same path.
+    monkeypatch.setattr(cli, "ProcessPoolExecutor", ThreadPoolExecutor)
+    copies = [shutil.copy(example_pdf, tmp_path / f"copy-{i}.pdf") for i in range(3)]
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"not a pdf")
+    paths = [str(copies[0]), str(broken), str(copies[1]), str(copies[2])]
+
+    assert cli.main(["parse", *paths, "-j", "3"]) == 1
+    captured = capsys.readouterr()
+    assert [r["source"] for r in json.loads(captured.out)] == [str(c) for c in copies]
+    assert f"{broken}: " in captured.err
+
+    assert cli.main(["transactions", *map(str, copies), "-j", "2", "--format", "json"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    assert [r["source"] for r in rows] == [str(c) for c in copies for _ in range(2)]
+
+    assert cli.main(["rewards", *map(str, copies), "-j", "2", "--format", "json"]) == 0
+    assert len(json.loads(capsys.readouterr().out)) == 3
+
+
+def test_jobs_must_be_positive(example_pdf: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["parse", str(example_pdf), "-j", "0"]) != 0
+    assert "--jobs must be at least 1" in capsys.readouterr().err
 
 
 def test_python_module_entrypoint_imports() -> None:

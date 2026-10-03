@@ -38,6 +38,15 @@ statement-parser validate statements/ -j 8 --report corpus-report.json
 Keep `statements/` local. Do not attach real statements to issues or pull
 requests.
 
+If a change touches text extraction or a hot parser path, compare timings
+before and after:
+
+```bash
+python scripts/benchmark.py statements/
+```
+
+See [docs/performance.md](docs/performance.md).
+
 ## Fixtures and privacy
 
 Tests must use synthetic documents. Do not commit real bank statements, cropped

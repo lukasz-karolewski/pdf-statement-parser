@@ -74,7 +74,7 @@ Example output with fake data:
 Useful commands:
 
 ```bash
-statement-parser parse statements/ --format csv -o statements.csv -r
+statement-parser parse statements/ --format csv -o statements.csv -r -j 8
 statement-parser transactions statements/ --format csv -o transactions.csv
 statement-parser rewards statements/ --format table
 statement-parser detect statements/example.pdf --all
@@ -95,6 +95,17 @@ examples/fake-example-bank.pdf 1234           Example Card   2026-01-01    2026-
 Directories expand to `*.pdf` in that directory. `parse -r` searches directories
 recursively. `validate` always searches directories recursively because corpus
 validation usually works on nested folders.
+
+`parse`, `transactions`, `rewards` and `validate` take `-j N` to parse files on
+N processes. Output keeps input order.
+
+## Performance
+
+A typical Chase statement parses in about 0.2 seconds on one core, roughly
+50 ms per page. Nearly all of that is pdfminer reading the PDF. With `-j 8`, a
+585-file corpus parses in about 25 seconds. See
+[docs/performance.md](docs/performance.md) for measurements and
+`scripts/benchmark.py` to run them on your own statements.
 
 ## Python API quickstart
 

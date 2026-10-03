@@ -34,7 +34,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from pdf_statement_parser.document import Document
+from pdf_statement_parser.document import Document, dedupe_chars
 from pdf_statement_parser.exceptions import ParseError
 from pdf_statement_parser.models import AccountType, Rewards, Statement, Transaction
 from pdf_statement_parser.parsers.base import StatementParser
@@ -343,28 +343,23 @@ def _parse_rewards(doc: Document, account_name: str) -> _RewardParse:
 
 def _extract_rewards_text(doc: Document) -> str:
     page = doc.pages[0]
-    plumber_page = page.plumber
-    if plumber_page is None:
+    deduped = page.deduped
+    if deduped is None:
         return page.text
     try:
-        cropped = (
-            plumber_page.dedupe_chars()
-            .crop(_REWARD_CROP)
-            .dedupe_chars()
-            .extract_text(x_tolerance=1, y_tolerance=3)
-        )
+        rewards_box = dedupe_chars(deduped.crop(_REWARD_CROP))
+        cropped = rewards_box.extract_text(x_tolerance=1, y_tolerance=3)
     except Exception:
         return page.text
     text = cropped or page.text
-    transfer_total = _positioned_rewards_transfer_total(plumber_page)
+    transfer_total = _positioned_rewards_transfer_total(rewards_box)
     if transfer_total is not None:
         text = _inject_rewards_transfer_total(text, transfer_total[0], transfer_total[1])
     return text
 
 
-def _positioned_rewards_transfer_total(page: Any) -> tuple[str, int] | None:
+def _positioned_rewards_transfer_total(rewards_box: Any) -> tuple[str, int] | None:
     try:
-        rewards_box = page.dedupe_chars().crop(_REWARD_CROP).dedupe_chars()
         words = rewards_box.extract_words(x_tolerance=1, y_tolerance=3)
     except Exception:
         return None

@@ -13,7 +13,7 @@ requires-python = ">=3.10"
 authors = [{ name = "Lukasz Karolewski" }]
 keywords = ["bank statement", "pdf", "parser", "transactions", "chase", "finance"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
