@@ -8,5 +8,5 @@ Be respectful, assume good intent, and focus criticism on the work. Harassment,
 slurs, threats, and unwanted personal attention are not acceptable.
 
 To report a conduct concern privately, open a report at
-https://github.com/lukasz-karolewski/statement-parser/security/advisories/new
+https://github.com/lukasz-karolewski/pdf-statement-parser/security/advisories/new
 and start the title with "Conduct:". Only the maintainers can see it.

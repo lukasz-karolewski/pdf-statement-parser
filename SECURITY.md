@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report vulnerabilities through GitHub's private vulnerability reporting:
-https://github.com/lukasz-karolewski/statement-parser/security/advisories/new
+https://github.com/lukasz-karolewski/pdf-statement-parser/security/advisories/new
 
 Only you and the maintainers can see the report. Please do not open a public
 issue for a vulnerability until there is a fix or a disclosure plan.

@@ -42,8 +42,8 @@ dev = [
 statement-parser = "pdf_statement_parser.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/lukasz-karolewski/statement-parser"
-Issues = "https://github.com/lukasz-karolewski/statement-parser/issues"
+Homepage = "https://github.com/lukasz-karolewski/pdf-statement-parser"
+Issues = "https://github.com/lukasz-karolewski/pdf-statement-parser/issues"
 
 [tool.hatch.version]
 path = "src/pdf_statement_parser/__about__.py"

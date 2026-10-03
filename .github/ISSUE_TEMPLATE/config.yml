@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security or conduct report
-    url: https://github.com/lukasz-karolewski/statement-parser/security/advisories/new
+    url: https://github.com/lukasz-karolewski/pdf-statement-parser/security/advisories/new
     about: Report vulnerabilities or conduct concerns privately. Never attach real statements.

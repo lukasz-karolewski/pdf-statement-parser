@@ -6,8 +6,8 @@ privacy rules matter more than usual.
 ## Development setup
 
 ```bash
-git clone https://github.com/lukasz-karolewski/statement-parser.git
-cd statement-parser
+git clone https://github.com/lukasz-karolewski/pdf-statement-parser.git
+cd pdf-statement-parser
 uv venv .venv
 uv pip install --python .venv/bin/python -e '.[dev]'
 ```
