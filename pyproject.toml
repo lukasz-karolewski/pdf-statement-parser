@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "statement-parser"
+dynamic = ["version"]
+description = "Extract account metadata and transactions from bank and credit card PDF statements, with a plugin per statement format."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Lukasz Karolewski" }]
+keywords = ["bank statement", "pdf", "parser", "transactions", "chase", "finance"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "Typing :: Typed",
+]
+dependencies = ["pdfplumber>=0.11"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "fpdf2>=2.7",
+]
+
+[project.scripts]
+statement-parser = "statement_parser.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/lkarolewski/statement-parser"
+Issues = "https://github.com/lkarolewski/statement-parser/issues"
+
+[tool.hatch.version]
+path = "src/statement_parser/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/statement_parser"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = ["ignore::DeprecationWarning:pdfminer.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+packages = ["statement_parser"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["pdfplumber.*", "pdfminer.*"]
+ignore_missing_imports = true
