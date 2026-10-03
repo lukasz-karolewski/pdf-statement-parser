@@ -9,7 +9,7 @@ import pytest
 from fpdf import FPDF
 
 from pdf_statement_parser.document import Document
-from pdf_statement_parser.models import AccountType, Statement, Transaction
+from pdf_statement_parser.models import AccountType, Rewards, Statement, Transaction
 from pdf_statement_parser.parsers.base import StatementParser
 from pdf_statement_parser.registry import ParserRegistry
 
@@ -22,6 +22,13 @@ Opening: 100.00
 Deposits: 50.00
 Expenses: 20.00
 Closing: 130.00
+Rewards Program: Example Rewards
+Rewards Unit: points
+Rewards Opening: 1000
+Rewards Closing: 1450
+Rewards Earned: 500
+Rewards Redeemed: -50
+Rewards Difference: 0
 Transactions:
 01/05/26 Coffee -20.00 80.00 purchase
 01/10/26 Payroll 50.00 130.00 deposit
@@ -76,6 +83,15 @@ class ExampleBankParser(StatementParser):
                 total_deposits=Decimal(match(r"^Deposits:\s*(.+)$")),
                 total_expenses=Decimal(match(r"^Expenses:\s*(.+)$")),
                 transactions=transactions,
+                rewards=Rewards(
+                    program=match(r"^Rewards Program:\s*(.+)$"),
+                    unit=match(r"^Rewards Unit:\s*(.+)$"),
+                    opening_balance=int(match(r"^Rewards Opening:\s*(.+)$")),
+                    closing_balance=int(match(r"^Rewards Closing:\s*(.+)$")),
+                    earned=int(match(r"^Rewards Earned:\s*(.+)$")),
+                    redeemed=int(match(r"^Rewards Redeemed:\s*(.+)$")),
+                    difference=int(match(r"^Rewards Difference:\s*(.+)$")),
+                ),
             )
         ]
 

@@ -9,7 +9,7 @@ from pdf_statement_parser.exceptions import (
     UnknownParserError,
     UnsupportedStatementError,
 )
-from pdf_statement_parser.models import AccountType, ParseResult, Statement, Transaction
+from pdf_statement_parser.models import AccountType, ParseResult, Rewards, Statement, Transaction
 from pdf_statement_parser.parsers.base import StatementParser
 from pdf_statement_parser.registry import (
     Detection,
@@ -27,6 +27,7 @@ __all__ = [
     "ParseError",
     "ParseResult",
     "ParserRegistry",
+    "Rewards",
     "Statement",
     "StatementParser",
     "StatementParserError",

@@ -45,6 +45,18 @@ credit cards.
 should match the way the statement prints them. For credit cards, a positive
 balance is the amount owed.
 
+## Parse rewards
+
+Use `Rewards` when the statement prints a points or miles summary. Movement
+fields are signed by their effect on the rewards balance. Points or miles that
+arrive are positive. Redemptions and transfers are negative.
+
+Use `None` when the statement does not print a value. Use `0` only when it
+prints zero. Sum per-category earn lines into `earned`; do not export the
+categories separately. Set `difference` to `(closing - opening) - movements`
+when the parser has enough printed data to compute it. Leave it as `None` when
+the program does not print balances or another required figure is missing.
+
 ## Use helpers
 
 `pdf_statement_parser.utils` has helpers for common parser work:

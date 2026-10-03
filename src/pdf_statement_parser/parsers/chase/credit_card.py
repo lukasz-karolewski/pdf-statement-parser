@@ -8,6 +8,22 @@ so the parser splits those net section totals only for opposite-signed lines:
 a purchase refund adds to deposits and is added back to expenses. That keeps
 the totals tied to ACCOUNT SUMMARY while making missed transactions fail
 reconcile().
+
+Rewards programs are named as "Ultimate Rewards", "Prime Visa points",
+"MileagePlus", and "Rapid Rewards". Reward line signs combine the leading
+statement bullet with the printed number's own sign: a plus bullet with a
+negative number stays negative, and an airline transfer printed as a negative
+number becomes a positive card-balance movement.
+
+MileagePlus and Rapid Rewards send earned miles/points to the airline every
+period, so these statements usually print no rewards balance; opening and
+closing stay ``None``. For them ``difference`` is ``-movements`` when a transfer
+total is printed (the sweep leaves nothing behind), and ``None`` when it is not.
+Rapid Rewards prints a negative balance when returns outweigh earnings; that
+balance is kept as printed and the next statement opens with it. When only the
+closing balance is printed, the opening balance is taken as 0 for
+``difference`` because the previous period's sweep emptied it; the
+``opening_balance`` field itself stays ``None``.
 """
 
 from __future__ import annotations
@@ -16,10 +32,11 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
 from pdf_statement_parser.document import Document
 from pdf_statement_parser.exceptions import ParseError
-from pdf_statement_parser.models import AccountType, Statement, Transaction
+from pdf_statement_parser.models import AccountType, Rewards, Statement, Transaction
 from pdf_statement_parser.parsers.base import StatementParser
 from pdf_statement_parser.utils import parse_amount, parse_date, resolve_month_day
 
@@ -53,6 +70,14 @@ _SKIP_ACTIVITY_PREFIXES = (
     "INCLUDING PAYMENTS RECEIVED",
     "TRANSACTIONS THIS CYCLE",
 )
+_REWARD_VALUE_RE = re.compile(r"(?<![\d/])([+-]?\d[\d,]*)(?![\d/])")
+_REWARD_CROP = (265, 55, 515, 245)
+
+
+@dataclass
+class _RewardParse:
+    rewards: Rewards | None
+    warnings: list[str]
 
 
 @dataclass(frozen=True)
@@ -125,12 +150,15 @@ class ChaseCreditCardParser(StatementParser):
         account_number = _parse_account_number(page1)
         account_holder = _parse_account_holder(doc, page1)
         transactions = _parse_transactions(doc, period_start, period_end, account_holder)
+        account_name = _parse_account_name(page1)
+        reward_parse = _parse_rewards(doc, account_name)
         warnings: list[str] = []
 
         if account_number is None:
             warnings.append("account number not found")
         if account_holder is None:
             warnings.append("account holder not found")
+        warnings.extend(reward_parse.warnings)
 
         total_deposits, total_expenses = _summary_totals(summary, transactions)
 
@@ -147,7 +175,7 @@ class ChaseCreditCardParser(StatementParser):
             bank=self.bank,
             account_type=AccountType.CREDIT_CARD,
             account_number=account_number,
-            account_name=_parse_account_name(page1),
+            account_name=account_name,
             account_holder=account_holder,
             period_start=period_start,
             period_end=period_end,
@@ -156,6 +184,7 @@ class ChaseCreditCardParser(StatementParser):
             total_deposits=total_deposits,
             total_expenses=total_expenses,
             transactions=transactions,
+            rewards=reward_parse.rewards,
             extra=_parse_extra(page1, all_text, period_start, period_end),
             warnings=warnings,
         )
@@ -305,6 +334,479 @@ def _parse_account_name(text: str) -> str:
     if "ULTIMATE REWARDS" in upper:
         return "Ultimate Rewards"
     return "Chase Credit Card"
+
+
+def _parse_rewards(doc: Document, account_name: str) -> _RewardParse:
+    text = _extract_rewards_text(doc)
+    return _parse_rewards_text(text, account_name)
+
+
+def _extract_rewards_text(doc: Document) -> str:
+    page = doc.pages[0]
+    plumber_page = page.plumber
+    if plumber_page is None:
+        return page.text
+    try:
+        cropped = (
+            plumber_page.dedupe_chars()
+            .crop(_REWARD_CROP)
+            .dedupe_chars()
+            .extract_text(x_tolerance=1, y_tolerance=3)
+        )
+    except Exception:
+        return page.text
+    text = cropped or page.text
+    transfer_total = _positioned_rewards_transfer_total(plumber_page)
+    if transfer_total is not None:
+        text = _inject_rewards_transfer_total(text, transfer_total[0], transfer_total[1])
+    return text
+
+
+def _positioned_rewards_transfer_total(page: Any) -> tuple[str, int] | None:
+    try:
+        rewards_box = page.dedupe_chars().crop(_REWARD_CROP).dedupe_chars()
+        words = rewards_box.extract_words(x_tolerance=1, y_tolerance=3)
+    except Exception:
+        return None
+
+    label_words = [
+        word
+        for word in words
+        if word.get("height", 99) < 1 and _letters_only(str(word.get("text", "")))
+    ]
+    label = _find_rewards_transfer_label(label_words)
+    if label is None:
+        return None
+    program, label_top = label
+
+    digit_chars: list[dict[str, Any]] = []
+    for char in rewards_box.chars:
+        text = str(char.get("text", ""))
+        top = float(char.get("top", 0))
+        height = float(char.get("height", 99))
+        if text not in "0123456789,+-" or height >= 1:
+            continue
+        if label_top - 1 <= top <= label_top + 30:
+            digit_chars.append(char)
+    if not digit_chars:
+        return None
+
+    groups: dict[int, list[dict[str, Any]]] = {}
+    for char in digit_chars:
+        top_key = round(float(char["top"]) * 2)
+        groups.setdefault(top_key, []).append(char)
+
+    for _, chars in sorted(groups.items(), key=lambda item: item[0]):
+        if max(float(char["top"]) for char in chars) < label_top + 1:
+            continue
+        value = _parse_reward_chars(chars)
+        if value is not None:
+            return program, value
+    return None
+
+
+def _find_rewards_transfer_label(label_words: list[dict[str, Any]]) -> tuple[str, float] | None:
+    words_by_top: dict[int, set[str]] = {}
+    tops: dict[int, list[float]] = {}
+    for word in label_words:
+        top = float(word["top"])
+        key = round(top * 2)
+        words_by_top.setdefault(key, set()).add(_letters_only(str(word["text"])))
+        tops.setdefault(key, []).append(top)
+    for key, words in words_by_top.items():
+        if {"total", "miles", "transferred", "united"} <= words:
+            return "MileagePlus", min(tops[key])
+        if {"total", "rapid", "rewards", "transf"} <= words:
+            return "Rapid Rewards", min(tops[key])
+    return None
+
+
+def _parse_reward_chars(chars: list[dict[str, Any]]) -> int | None:
+    text = "".join(str(char["text"]) for char in sorted(chars, key=lambda char: float(char["x0"])))
+    text = text.strip()
+    if not re.fullmatch(r"[+-]?\d[\d,]*", text):
+        return None
+    return int(text.replace(",", ""))
+
+
+def _inject_rewards_transfer_total(text: str, program: str, value: int) -> str:
+    if program == "MileagePlus":
+        replacement = f"Total miles transferred to United {value:,}"
+    else:
+        replacement = f"- Total Rapid Rewards transf. to Southwest {value:,}"
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if _is_airline_transfer_line(_letters_only(line)):
+            lines[index] = replacement
+            return "\n".join(lines)
+    return f"{text.rstrip()}\n{replacement}"
+
+
+def _parse_rewards_text(text: str, account_name: str) -> _RewardParse:
+    program = _reward_program(text, account_name)
+    if program is None:
+        return _RewardParse(None, [])
+
+    unit = "miles" if program == "MileagePlus" else "points"
+    rewards = Rewards(program=program, unit=unit)
+    warnings: list[str] = []
+    pending: str | None = None
+    pending_line = ""
+    seen_detail = False
+    finished = False
+
+    for raw_line in text.splitlines():
+        line = " ".join(raw_line.split())
+        if not line:
+            continue
+        letters = _letters_only(line)
+        if "accountsummary" in letters or "accountactivity" in letters:
+            break
+        if _is_rewards_heading(letters):
+            continue
+
+        if pending is not None:
+            value = _reward_line_value(line, allow_garbled=True)
+            if value is not None:
+                _set_pending_reward_value(rewards, pending, value)
+                if pending in {"closing_balance", "year_to_date"}:
+                    finished = True
+                if pending == "airline_transfer":
+                    finished = True
+                pending = None
+                pending_line = ""
+                seen_detail = True
+                continue
+            if _looks_like_reward_line(line, letters):
+                warnings.append(f"unrecognised rewards line after {pending_line}")
+            pending = None
+            pending_line = ""
+
+        if finished and not _is_ytd_line(letters):
+            continue
+
+        if _is_previous_rewards_balance_line(letters):
+            value = _reward_line_value(line, allow_garbled=True)
+            if value is None:
+                pending = "opening_balance"
+                pending_line = "opening balance"
+            else:
+                rewards.opening_balance = value
+            seen_detail = True
+            continue
+
+        if program != "MileagePlus" and _is_closing_rewards_balance_line(letters):
+            value = _reward_line_value(line, allow_garbled=True)
+            if value is None:
+                pending = "closing_balance"
+                pending_line = "closing balance"
+            else:
+                rewards.closing_balance = value
+                finished = True
+            seen_detail = True
+            continue
+
+        if _is_ytd_line(letters):
+            value = _reward_line_value(line, allow_garbled=True)
+            if value is None:
+                pending = "year_to_date"
+                pending_line = "year-to-date"
+            else:
+                rewards.year_to_date = value
+                finished = True
+            seen_detail = True
+            continue
+
+        if _is_airline_transfer_line(letters):
+            value = _reward_line_value(line, allow_garbled=False)
+            if value is None:
+                pending = "airline_transfer"
+                pending_line = "airline transfer"
+            else:
+                _add_reward_value(rewards, "transferred", _airline_transfer_movement(line, value))
+                if program == "MileagePlus":
+                    finished = True
+                elif "rapidrewards" in letters and (
+                    value == 0 or rewards.opening_balance is not None
+                ):
+                    pending = "closing_balance"
+                    pending_line = "closing balance"
+                elif program == "Rapid Rewards":
+                    finished = True
+            seen_detail = True
+            continue
+
+        if program == "MileagePlus" and seen_detail and _leading_reward_bullet(line) is None:
+            break
+
+        value = _signed_reward_line_value(line)
+        if value is None:
+            if _looks_like_reward_line(line, letters) and seen_detail:
+                warnings.append("unrecognised rewards line")
+            continue
+
+        if _is_redeemed_line(letters):
+            _add_reward_value(rewards, "redeemed", value)
+        elif _is_transfer_line(letters):
+            _add_reward_value(rewards, "transferred", value)
+        elif _is_adjustment_line(letters):
+            _add_reward_value(rewards, "adjustments", value)
+        elif _is_welcome_bonus_line(letters):
+            _add_reward_value(rewards, "welcome_bonus", value)
+        elif _is_anniversary_bonus_line(letters):
+            _add_reward_value(rewards, "anniversary_bonus", value)
+        elif _is_earned_line(line, letters):
+            _add_reward_value(rewards, "earned", value)
+        elif _is_other_bonus_line(letters):
+            _add_reward_value(rewards, "other_bonus", value)
+        elif _looks_like_reward_line(line, letters) and seen_detail:
+            warnings.append("unrecognised rewards line")
+            continue
+        else:
+            continue
+        seen_detail = True
+
+    if pending is not None:
+        warnings.append(f"unrecognised rewards line after {pending_line}")
+
+    rewards.difference = _reward_difference(rewards)
+    if not seen_detail:
+        return _RewardParse(None, [])
+    return _RewardParse(rewards, warnings)
+
+
+def _reward_program(text: str, account_name: str) -> str | None:
+    upper = text.upper()
+    if "MILEAGEPLUS" in upper or "UNITED" in account_name.upper():
+        return "MileagePlus"
+    if "RAPID REWARDS" in upper or "SOUTHWEST" in account_name.upper():
+        return "Rapid Rewards"
+    if "PRIME VISA" in upper or "AMAZON" in upper or account_name == "Prime Visa":
+        return "Prime Visa points"
+    if (
+        "ULTIMATE REWARDS" in upper
+        or "REWARDS SUMMARY" in upper
+        or account_name
+        in {
+            "Freedom",
+            "Freedom Unlimited",
+            "Sapphire",
+            "Sapphire Preferred",
+            "Sapphire Reserve",
+            "Ink Business Cash",
+            "Ultimate Rewards",
+        }
+    ):
+        return "Ultimate Rewards"
+    return None
+
+
+def _reward_difference(rewards: Rewards) -> int | None:
+    if rewards.opening_balance is not None and rewards.closing_balance is not None:
+        return rewards.closing_balance - rewards.opening_balance - rewards.movements
+    if rewards.opening_balance is None and rewards.closing_balance is not None:
+        return rewards.closing_balance - rewards.movements
+    if (
+        rewards.transferred is not None
+        and rewards.opening_balance is None
+        and rewards.closing_balance is None
+    ):
+        return -rewards.movements
+    return None
+
+
+def _set_pending_reward_value(rewards: Rewards, pending: str, value: int) -> None:
+    if pending == "opening_balance":
+        rewards.opening_balance = value
+    elif pending == "closing_balance":
+        rewards.closing_balance = value
+    elif pending == "year_to_date":
+        rewards.year_to_date = value
+    elif pending == "airline_transfer":
+        _add_reward_value(rewards, "transferred", -value)
+
+
+def _add_reward_value(rewards: Rewards, field: str, value: int) -> None:
+    current = getattr(rewards, field)
+    if current is None:
+        setattr(rewards, field, value)
+    else:
+        setattr(rewards, field, current + value)
+
+
+def _reward_line_value(line: str, *, allow_garbled: bool) -> int | None:
+    if allow_garbled and re.search(r"[A-Za-z]\d|\d[A-Za-z]", line):
+        digits = "".join(ch for ch in line if ch.isdigit())
+        if digits:
+            sign = -1 if re.search(r"-\s*[A-Za-z]*\d", line) else 1
+            return sign * int(digits)
+    matches = list(_REWARD_VALUE_RE.finditer(line))
+    if matches:
+        return int(matches[-1].group(1).replace(",", ""))
+    if not allow_garbled:
+        return None
+    digits = "".join(ch for ch in line if ch.isdigit())
+    if not digits:
+        return None
+    sign = -1 if re.search(r"-\s*[A-Za-z]*\d", line) else 1
+    return sign * int(digits)
+
+
+def _plain_reward_line_value(line: str) -> int | None:
+    text = line.strip()
+    if not re.fullmatch(r"[+-]?\d[\d,]*", text):
+        return None
+    return int(text.replace(",", ""))
+
+
+def _signed_reward_line_value(line: str) -> int | None:
+    value = _reward_line_value(line, allow_garbled=False)
+    if value is None:
+        return None
+    amount_sign = -1 if value < 0 else 1
+    bullet = _leading_reward_bullet(line)
+    if bullet == "-":
+        return -abs(value) * amount_sign
+    if bullet == "+":
+        return abs(value) * amount_sign
+    return value
+
+
+def _airline_transfer_movement(line: str, value: int) -> int:
+    bullet = _leading_reward_bullet(line)
+    if bullet is not None:
+        signed = _signed_reward_line_value(line)
+        return signed if signed is not None else 0
+    return -value
+
+
+def _leading_reward_bullet(line: str) -> str | None:
+    stripped = line.lstrip()
+    if stripped.startswith("+"):
+        return "+"
+    if stripped.startswith("-"):
+        return "-"
+    return None
+
+
+def _is_rewards_heading(letters: str) -> bool:
+    return letters in {
+        "summary",
+        "rewardssummary",
+        "milessummary",
+        "yourprimevisapoints",
+        "ultimatewards",
+        "ultimaterewards",
+        "chaseultimaterewards",
+        "unitedmileageplusaward",
+        "southwestrapid",
+        "rewardscreditcard",
+    }
+
+
+def _is_previous_rewards_balance_line(letters: str) -> bool:
+    return (
+        "previouspointsbalance" in letters
+        or "previousmonthsbalance" in letters
+        or (
+            "evi" in letters
+            and "ous" in letters
+            and (
+                "points" in letters or "month" in letters or ("mo" in letters and "nth" in letters)
+            )
+            and ("balance" in letters or "lance" in letters)
+        )
+    )
+
+
+def _is_closing_rewards_balance_line(letters: str) -> bool:
+    return (
+        "totalpointsavailable" in letters
+        or "rewardspointsbalance" in letters
+        or ("redemption" in letters and "total" not in letters)
+    )
+
+
+def _is_ytd_line(letters: str) -> bool:
+    return "yeartodate" in letters
+
+
+def _is_airline_transfer_line(letters: str) -> bool:
+    return "totalmilestransferred" in letters or "totalrapidrewardstransf" in letters
+
+
+def _is_transfer_line(letters: str) -> bool:
+    return "pointsmovedfromanotheraccount" in letters or "pointsmovedtoanotheraccount" in letters
+
+
+def _is_redeemed_line(letters: str) -> bool:
+    return "redeemed" in letters
+
+
+def _is_adjustment_line(letters: str) -> bool:
+    return "adjust" in letters
+
+
+def _is_welcome_bonus_line(letters: str) -> bool:
+    return "newcardmember" in letters or "welcome" in letters
+
+
+def _is_anniversary_bonus_line(letters: str) -> bool:
+    return "anniversary" in letters or ("annual" in letters and "bonus" in letters)
+
+
+def _is_other_bonus_line(letters: str) -> bool:
+    return "bonus" in letters or "promotional" in letters or "referral" in letters
+
+
+def _is_earned_line(line: str, letters: str) -> bool:
+    lower = line.lower()
+    if "%" in line:
+        return True
+    if re.search(r"\b\d+(?:\.\d+)?x\b", lower):
+        return True
+    if "bonus" in letters and (
+        "category" in letters or "purchase" in letters or "%" in line or "back" in letters
+    ):
+        return True
+    return any(
+        token in lower
+        for token in (
+            "earned",
+            "purchases",
+            "purchase",
+            " pts ",
+            " pt ",
+            "point per",
+            "points per",
+            "pt per",
+            "points earned",
+            "mile per",
+            "miles earned",
+            "addl miles",
+            "back",
+            "x pts",
+            "x points",
+            "x miles",
+        )
+    )
+
+
+def _looks_like_reward_line(line: str, letters: str) -> bool:
+    return _leading_reward_bullet(line) is not None or any(
+        token in letters
+        for token in (
+            "point",
+            "mile",
+            "reward",
+            "redeem",
+            "bonus",
+            "transf",
+            "earned",
+            "adjust",
+            "balance",
+        )
+    )
 
 
 def _parse_account_holder(doc: Document, page1: str) -> str | None:

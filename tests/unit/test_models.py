@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from pdf_statement_parser.models import AccountType, ParseResult, Statement, Transaction
+from pdf_statement_parser.models import AccountType, ParseResult, Rewards, Statement, Transaction
 
 
 def test_transaction_and_statement_to_dict_serialise_json_values() -> None:
@@ -55,3 +55,40 @@ def test_empty_parse_result_has_no_primary_statement() -> None:
 
     with pytest.raises(ValueError, match="no statements"):
         _ = result.statement
+
+
+def test_rewards_movements_and_to_dict_keep_ints_and_none() -> None:
+    rewards = Rewards(
+        program="Example Rewards",
+        opening_balance=100,
+        closing_balance=145,
+        earned=50,
+        welcome_bonus=None,
+        other_bonus=5,
+        redeemed=-10,
+        difference=0,
+    )
+
+    data = rewards.to_dict()
+
+    assert rewards.movements == 45
+    assert data["earned"] == 50
+    assert data["welcome_bonus"] is None
+    assert data["redeemed"] == -10
+
+
+def test_statement_to_dict_includes_rewards() -> None:
+    statement = Statement(
+        bank="Example Bank",
+        account_type=AccountType.CREDIT_CARD,
+        account_number="1234",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        rewards=Rewards(program="Example Rewards", earned=10, difference=None),
+    )
+
+    data = statement.to_dict()
+
+    assert data["rewards"]["program"] == "Example Rewards"
+    assert data["rewards"]["earned"] == 10
+    assert data["rewards"]["difference"] is None

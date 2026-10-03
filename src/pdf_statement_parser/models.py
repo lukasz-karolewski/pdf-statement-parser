@@ -57,6 +57,62 @@ class Transaction:
 
 
 @dataclass
+class Rewards:
+    """Points or miles activity for one statement period.
+
+    Every movement field is the signed effect on the card's rewards balance:
+    points that arrive are positive, points that leave (redemptions, transfers
+    to another account or to an airline) are negative. A field is ``None`` when
+    the statement does not print it, and ``0`` only when it prints zero.
+
+    Per-category earn lines ("5% back on ...", "2X on dining") are summed into
+    ``earned`` and not exported individually.
+    """
+
+    # Program as printed, e.g. "Ultimate Rewards", "MileagePlus".
+    program: str | None = None
+    # "points" or "miles".
+    unit: str = "points"
+    # ``None`` when the statement prints no balance, e.g. airline cards that
+    # send all miles to the airline every period.
+    opening_balance: int | None = None
+    closing_balance: int | None = None
+    # Sum of base and category earnings. Negative when returns outweigh
+    # purchases in the period.
+    earned: int | None = None
+    welcome_bonus: int | None = None
+    anniversary_bonus: int | None = None
+    # Other bonuses that are neither category earnings nor welcome/anniversary.
+    other_bonus: int | None = None
+    adjustments: int | None = None
+    transferred: int | None = None
+    redeemed: int | None = None
+    # Year-to-date total the statement reports, e.g. United "Year-to-date
+    # miles earned". Informational; not part of the period arithmetic.
+    year_to_date: int | None = None
+    # (closing - opening) minus the sum of all movement fields: what the
+    # printed figures fail to explain. 0 means it reconciles. ``None`` when it
+    # cannot be computed (see the parser's docs for programs without balances).
+    difference: int | None = None
+
+    @property
+    def movements(self) -> int:
+        fields = (
+            self.earned,
+            self.welcome_bonus,
+            self.anniversary_bonus,
+            self.other_bonus,
+            self.adjustments,
+            self.transferred,
+            self.redeemed,
+        )
+        return sum(v for v in fields if v is not None)
+
+    def to_dict(self) -> dict[str, Any]:
+        return cast(dict[str, Any], _to_jsonable(dataclasses.asdict(self)))
+
+
+@dataclass
 class Statement:
     """One account over one statement period."""
 
@@ -77,7 +133,9 @@ class Statement:
     total_deposits: Decimal | None = None
     total_expenses: Decimal | None = None
     transactions: list[Transaction] = field(default_factory=list)
-    # Provider-specific fields (due date, credit limit, rewards, ...).
+    # Points/miles summary for cards with a rewards program.
+    rewards: Rewards | None = None
+    # Provider-specific fields (due date, credit limit, ...).
     extra: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 

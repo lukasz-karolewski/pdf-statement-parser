@@ -25,6 +25,31 @@ from pdf_statement_parser.validation import Issue, reconcile
 
 log = logging.getLogger(__name__)
 
+REWARDS_FIELDS = (
+    "program",
+    "unit",
+    "opening_balance",
+    "closing_balance",
+    "earned",
+    "welcome_bonus",
+    "anniversary_bonus",
+    "other_bonus",
+    "adjustments",
+    "transferred",
+    "redeemed",
+    "year_to_date",
+    "difference",
+)
+
+REWARDS_COLUMNS = (
+    "source",
+    "account_last4",
+    "account_name",
+    "period_start",
+    "period_end",
+    *REWARDS_FIELDS,
+)
+
 REQUIRED_VALIDATION_FIELDS = (
     "account_number",
     "account_name",
@@ -85,6 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
     tx_cmd.add_argument("-o", "--out", type=Path)
     tx_cmd.set_defaults(func=cmd_transactions)
 
+    rewards_cmd = sub.add_parser("rewards", help="write rewards rows")
+    rewards_cmd.add_argument("paths", nargs="+", metavar="FILE_OR_DIR")
+    rewards_cmd.add_argument("--format", choices=("table", "csv", "json"), default="table")
+    rewards_cmd.add_argument("-o", "--out", type=Path)
+    rewards_cmd.set_defaults(func=cmd_rewards)
+
     detect_cmd = sub.add_parser("detect", help="detect the best parser for each file")
     detect_cmd.add_argument("paths", nargs="+", metavar="FILE_OR_DIR")
     detect_cmd.add_argument("--all", action="store_true", help="show every parser score")
@@ -94,6 +125,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate_cmd.add_argument("paths", nargs="+", metavar="FILE_OR_DIR")
     validate_cmd.add_argument("-j", "--jobs", type=int, default=1)
     validate_cmd.add_argument("--report", type=Path)
+    validate_cmd.add_argument(
+        "--strict-rewards",
+        action="store_true",
+        help="fail validation when printed rewards movements do not reconcile",
+    )
     validate_cmd.set_defaults(func=cmd_validate)
 
     parsers_cmd = sub.add_parser("parsers", help="list registered parsers")
@@ -168,6 +204,26 @@ def cmd_transactions(args: argparse.Namespace) -> int:
     return _finish_batch(errors)
 
 
+def cmd_rewards(args: argparse.Namespace) -> int:
+    paths, missing = expand_inputs(args.paths, recursive=False)
+    results: list[ParseResult] = []
+    errors = _missing_errors(missing)
+    for path in paths:
+        try:
+            results.append(api_parse(path, registry=default_registry()))
+        except Exception as exc:
+            errors.append(f"{path}: {_one_line_error(exc)}")
+    rows = _rewards_rows(results)
+    if args.format == "json":
+        output = json.dumps(rows, indent=2, default=_json_default)
+    elif args.format == "csv":
+        output = _rows_csv(rows, REWARDS_COLUMNS)
+    else:
+        output = _simple_table(rows, REWARDS_COLUMNS) if rows else ""
+    _write_output(args.out, output)
+    return _finish_batch(errors)
+
+
 def cmd_detect(args: argparse.Namespace) -> int:
     registry = default_registry()
     paths, missing = expand_inputs(args.paths, recursive=False)
@@ -214,9 +270,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         else:
             print(f"FAIL {row['file']}: {_validation_detail(row)}")
     _print_validation_summary(rows)
+    rewards_nonzero = _print_rewards_validation_summary(rows)
     if args.report:
         args.report.write_text(json.dumps(rows, indent=2), encoding="utf-8")
-    return 0 if rows and all(row["status"] == "ok" for row in rows) else 1
+    ok = bool(rows) and all(row["status"] == "ok" for row in rows)
+    if args.strict_rewards and rewards_nonzero:
+        ok = False
+    return 0 if ok else 1
 
 
 def cmd_parsers(args: argparse.Namespace) -> int:
@@ -306,6 +366,7 @@ def _validate_one(path: str) -> dict[str, Any]:
                 "missing": missing,
                 "issues": [_issue_text(issue) for issue in issues],
                 "warnings": statement.warnings,
+                "rewards": _rewards_validation_row(statement),
             }
         )
     row["accounts"] = accounts
@@ -338,6 +399,7 @@ def _parse_csv(results: Sequence[ParseResult]) -> str:
                     "total_expenses": statement.total_expenses,
                     "transaction_count": len(statement.transactions),
                     "warnings": "; ".join(statement.warnings),
+                    **_prefixed_rewards(statement),
                 }
             )
     return _rows_csv(
@@ -362,8 +424,62 @@ def _parse_csv(results: Sequence[ParseResult]) -> str:
             "total_expenses",
             "transaction_count",
             "warnings",
+            "rewards_program",
+            "rewards_unit",
+            "rewards_opening_balance",
+            "rewards_closing_balance",
+            "rewards_earned",
+            "rewards_welcome_bonus",
+            "rewards_anniversary_bonus",
+            "rewards_other_bonus",
+            "rewards_adjustments",
+            "rewards_transferred",
+            "rewards_redeemed",
+            "rewards_year_to_date",
+            "rewards_difference",
         ],
     )
+
+
+def _rewards_rows(results: Sequence[ParseResult]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for result in results:
+        for statement in result.statements:
+            if statement.rewards is not None:
+                rows.append(_rewards_row(result.source, statement))
+    return rows
+
+
+def _rewards_row(source: str | None, statement: Statement) -> dict[str, object]:
+    row: dict[str, object] = {
+        "source": source,
+        "account_last4": statement.account_last4,
+        "account_name": statement.account_name,
+        "period_start": statement.period_start,
+        "period_end": statement.period_end,
+    }
+    rewards = statement.rewards
+    for field in REWARDS_FIELDS:
+        row[field] = getattr(rewards, field) if rewards is not None else None
+    return row
+
+
+def _prefixed_rewards(statement: Statement) -> dict[str, object]:
+    rewards = statement.rewards
+    return {
+        f"rewards_{field}": getattr(rewards, field) if rewards is not None else None
+        for field in REWARDS_FIELDS
+    }
+
+
+def _rewards_validation_row(statement: Statement) -> dict[str, object] | None:
+    if statement.rewards is None:
+        return None
+    return {
+        "program": statement.rewards.program,
+        "unit": statement.rewards.unit,
+        "difference": statement.rewards.difference,
+    }
 
 
 def _transaction_rows(result: ParseResult) -> list[dict[str, object]]:
@@ -406,6 +522,17 @@ def _parse_table(results: Sequence[ParseResult], *, include_transactions: bool) 
                 f"expenses={_cell(statement.total_expenses)} "
                 f"transactions={len(statement.transactions)}"
             )
+            if statement.rewards is not None:
+                rewards = statement.rewards
+                parts.append(
+                    "     "
+                    f"rewards {rewards.program or ''} {rewards.unit}: "
+                    f"opening={_cell(rewards.opening_balance)} "
+                    f"closing={_cell(rewards.closing_balance)} "
+                    f"earned={_cell(rewards.earned)} "
+                    f"redeemed={_cell(rewards.redeemed)} "
+                    f"difference={_cell(rewards.difference)}"
+                )
             if include_transactions and statement.transactions:
                 rows: list[dict[str, object]] = [
                     {
@@ -528,6 +655,33 @@ def _print_validation_summary(rows: Sequence[dict[str, Any]]) -> None:
             issue_kinds.update(f"missing:{name}" for name in account.get("missing", []))
     for issue, count in issue_kinds.most_common():
         print(f"  {issue}: {count}")
+
+
+def _print_rewards_validation_summary(rows: Sequence[dict[str, Any]]) -> int:
+    count = 0
+    zero = 0
+    nonzero = 0
+    unknown = 0
+    notes: list[str] = []
+    for row in rows:
+        for account in row.get("accounts", []):
+            rewards = account.get("rewards")
+            if rewards is None:
+                continue
+            count += 1
+            difference = rewards.get("difference")
+            if difference is None:
+                unknown += 1
+            elif difference == 0:
+                zero += 1
+            else:
+                nonzero += 1
+                last4 = account.get("account_last4") or "unknown"
+                notes.append(f"note {row['file']} [{last4}] rewards difference {difference}")
+    print(f"rewards: statements={count}, zero={zero}, nonzero={nonzero}, none={unknown}")
+    for note in notes:
+        print(note)
+    return nonzero
 
 
 def _indent(text: str, spaces: int) -> str:

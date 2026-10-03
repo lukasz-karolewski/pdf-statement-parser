@@ -76,11 +76,20 @@ Useful commands:
 ```bash
 statement-parser parse statements/ --format csv -o statements.csv -r
 statement-parser transactions statements/ --format csv -o transactions.csv
+statement-parser rewards statements/ --format table
 statement-parser detect statements/example.pdf --all
 statement-parser validate statements/ -j 8 --report report.json
 statement-parser dump statements/example.pdf --page 1
 statement-parser parsers
 python -m pdf_statement_parser parse statements/example.pdf
+```
+
+Fake rewards output:
+
+```text
+source                         account_last4  account_name   period_start  period_end    program          unit    opening_balance  closing_balance  earned  welcome_bonus  anniversary_bonus  other_bonus  adjustments  transferred  redeemed  year_to_date  difference
+-----------------------------  -------------  -------------  ------------  ------------  ---------------  ------  ---------------  ---------------  ------  -------------  -----------------  -----------  -----------  -----------  --------  ------------  ----------
+examples/fake-example-bank.pdf 1234           Example Card   2026-01-01    2026-01-31    Example Rewards  points  1000             1450             500                                                          -50                       0
 ```
 
 Directories expand to `*.pdf` in that directory. `parse -r` searches directories
@@ -116,8 +125,24 @@ result = parse("statement.pdf", parser="chase-credit-card")
 | `total_deposits` | Non-negative total for money in during the period. |
 | `total_expenses` | Non-negative total for money out during the period. |
 | `opening_balance`, `closing_balance` | Balances as printed by the bank. For credit cards, a positive balance is the amount owed. |
+| `rewards` | Optional points or miles summary for the period, or `None`. See below. |
 
 JSON writes `Decimal` values as strings. CSV writes amounts as plain numeric text.
+
+Rewards movement fields are signed by their effect on the rewards balance.
+Points or miles that arrive are positive. Redemptions and transfers are
+negative. `None` means the statement did not print that value. Per-category earn
+lines are added into `earned` and are not exported separately.
+
+| Rewards field | Meaning |
+| --- | --- |
+| `program`, `unit` | Program name and unit, such as points or miles. |
+| `opening_balance`, `closing_balance` | Printed rewards balances when present. |
+| `earned` | Sum of base and category earnings for the period. |
+| `welcome_bonus`, `anniversary_bonus`, `other_bonus` | Printed bonus movements. |
+| `adjustments`, `transferred`, `redeemed` | Other signed movements. |
+| `year_to_date` | Printed year-to-date total. It is not part of period arithmetic. |
+| `difference` | `(closing - opening) - movements`. `0` means the rewards summary reconciles. |
 
 ## Supported statements
 
