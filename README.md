@@ -102,10 +102,49 @@ N processes. Output keeps input order.
 ## Performance
 
 A typical Chase statement parses in about 0.2 seconds on one core, roughly
-50 ms per page. Nearly all of that is pdfminer reading the PDF. With `-j 8`, a
-585-file corpus parses in about 25 seconds. See
-[docs/performance.md](docs/performance.md) for measurements and
-`scripts/benchmark.py` to run them on your own statements.
+50 ms per page. Numbers below come from 585 real Chase statements (397 credit
+card, 188 checking or savings, 2,346 pages) on an Intel i9-11900KF with
+8 cores, Python 3.14 and pdfplumber 0.11.10.
+
+| One process | 0.1.0a2 | 0.1.0b1 |
+| --- | ---: | ---: |
+| Whole corpus | 983 s | 118 s |
+| Mean per file | 1,681 ms | 201 ms |
+| p95 per file | 4,518 ms | 417 ms |
+| Slowest file | 9,646 ms | 727 ms |
+| Per page | 419 ms | 50 ms |
+
+About 96% of the time goes to pdfminer reading the PDF and pdfplumber building
+character objects. Detection takes under 0.1 ms and parser code about 5 ms per
+file. Version 0.1.0b1 returns byte-identical text and results to 0.1.0a2 on
+the whole corpus.
+
+Files are independent, so `-j` helps up to the number of physical cores:
+
+| Workers | 1 | 2 | 4 | 8 | 16 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Corpus wall time | 118 s | 59 s | 36 s | 26 s | 23 s |
+| Files per second | 5.0 | 10.0 | 16.2 | 22.2 | 25.5 |
+
+Peak Python heap is about 20 MiB per file, or 5 MiB per page. The largest
+statement, 10 pages, peaked at 70 MiB. Nothing stays allocated after a document
+closes.
+
+Measure your own statements with `scripts/benchmark.py`. It times each phase
+per file (open, extract, detect, parse) and prints a summary by parser and the
+slowest files. Real statements stay on your machine.
+
+```bash
+python scripts/benchmark.py statements/                   # one process
+python scripts/benchmark.py statements/ -j 8              # throughput
+python scripts/benchmark.py statements/ --memory          # tracemalloc peaks
+python scripts/benchmark.py statements/ --limit 50 --profile
+python scripts/benchmark.py statements/ --json timings.json
+```
+
+Run timing and `--memory` separately, because tracemalloc slows parsing down.
+[docs/performance.md](docs/performance.md) explains the 0.1.0b1 speedups and
+the options left out.
 
 ## Python API quickstart
 
