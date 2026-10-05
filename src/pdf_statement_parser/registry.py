@@ -18,6 +18,7 @@ ENTRY_POINT_GROUP = "pdf_statement_parser.parsers"
 
 #: Parsers shipped with the library, as "module:Class" paths.
 BUILTIN_PARSERS = (
+    "pdf_statement_parser.parsers.apple.card:AppleCardParser",
     "pdf_statement_parser.parsers.chase.credit_card:ChaseCreditCardParser",
     "pdf_statement_parser.parsers.chase.deposit:ChaseDepositParser",
 )

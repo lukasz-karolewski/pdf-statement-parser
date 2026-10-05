@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import json
 import logging
 import sys
@@ -21,7 +22,7 @@ from pdf_statement_parser.document import Document
 from pdf_statement_parser.exceptions import UnsupportedStatementError
 from pdf_statement_parser.models import ParseResult, Statement
 from pdf_statement_parser.registry import default_registry
-from pdf_statement_parser.validation import Issue, reconcile
+from pdf_statement_parser.validation import Issue, not_printed, reconcile
 
 log = logging.getLogger(__name__)
 
@@ -102,18 +103,21 @@ def build_parser() -> argparse.ArgumentParser:
     parse_cmd.add_argument("--no-transactions", action="store_true")
     parse_cmd.add_argument("--password")
     parse_cmd.add_argument("-r", "--recursive", action="store_true")
+    parse_cmd.add_argument("-j", "--jobs", type=int, default=1, help="parallel worker processes")
     parse_cmd.set_defaults(func=cmd_parse)
 
     tx_cmd = sub.add_parser("transactions", help="write flat transaction rows")
     tx_cmd.add_argument("paths", nargs="+", metavar="FILE_OR_DIR")
     tx_cmd.add_argument("--format", choices=("csv", "json"), default="csv")
     tx_cmd.add_argument("-o", "--out", type=Path)
+    tx_cmd.add_argument("-j", "--jobs", type=int, default=1, help="parallel worker processes")
     tx_cmd.set_defaults(func=cmd_transactions)
 
     rewards_cmd = sub.add_parser("rewards", help="write rewards rows")
     rewards_cmd.add_argument("paths", nargs="+", metavar="FILE_OR_DIR")
     rewards_cmd.add_argument("--format", choices=("table", "csv", "json"), default="table")
     rewards_cmd.add_argument("-o", "--out", type=Path)
+    rewards_cmd.add_argument("-j", "--jobs", type=int, default=1, help="parallel worker processes")
     rewards_cmd.set_defaults(func=cmd_rewards)
 
     detect_cmd = sub.add_parser("detect", help="detect the best parser for each file")
@@ -145,17 +149,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_parse(args: argparse.Namespace) -> int:
     paths, missing = expand_inputs(args.paths, recursive=args.recursive)
-    results: list[ParseResult] = []
     errors = _missing_errors(missing)
-    for path in paths:
-        try:
-            results.append(
-                api_parse(
-                    path, parser=args.parser_id, registry=default_registry(), password=args.password
-                )
-            )
-        except Exception as exc:
-            errors.append(f"{path}: {_one_line_error(exc)}")
+    results = _parse_many(
+        paths, errors, jobs=args.jobs, parser_id=args.parser_id, password=args.password
+    )
     include_transactions = not bool(args.no_transactions)
     if args.format == "json":
         output = json.dumps(
@@ -174,12 +171,7 @@ def cmd_transactions(args: argparse.Namespace) -> int:
     paths, missing = expand_inputs(args.paths, recursive=False)
     rows: list[dict[str, object]] = []
     errors = _missing_errors(missing)
-    for path in paths:
-        try:
-            result = api_parse(path, registry=default_registry())
-        except Exception as exc:
-            errors.append(f"{path}: {_one_line_error(exc)}")
-            continue
+    for result in _parse_many(paths, errors, jobs=args.jobs):
         rows.extend(_transaction_rows(result))
     if args.format == "json":
         output = json.dumps(rows, indent=2, default=_json_default)
@@ -206,14 +198,8 @@ def cmd_transactions(args: argparse.Namespace) -> int:
 
 def cmd_rewards(args: argparse.Namespace) -> int:
     paths, missing = expand_inputs(args.paths, recursive=False)
-    results: list[ParseResult] = []
     errors = _missing_errors(missing)
-    for path in paths:
-        try:
-            results.append(api_parse(path, registry=default_registry()))
-        except Exception as exc:
-            errors.append(f"{path}: {_one_line_error(exc)}")
-    rows = _rewards_rows(results)
+    rows = _rewards_rows(_parse_many(paths, errors, jobs=args.jobs))
     if args.format == "json":
         output = json.dumps(rows, indent=2, default=_json_default)
     elif args.format == "csv":
@@ -330,6 +316,40 @@ def expand_inputs(paths: Iterable[str | Path], *, recursive: bool) -> tuple[list
     return files, missing
 
 
+def _parse_many(
+    paths: Sequence[Path],
+    errors: list[str],
+    *,
+    jobs: int = 1,
+    parser_id: str | None = None,
+    password: str | None = None,
+) -> list[ParseResult]:
+    """Parse ``paths`` in order on ``jobs`` processes, appending failures to ``errors``."""
+    if jobs < 1:
+        raise CliError("--jobs must be at least 1")
+    work = functools.partial(_parse_one, parser_id=parser_id, password=password)
+    names = [str(path) for path in paths]
+    if jobs == 1 or len(names) < 2:
+        outcomes = [work(name) for name in names]
+    else:
+        with ProcessPoolExecutor(max_workers=min(jobs, len(names))) as pool:
+            outcomes = list(pool.map(work, names, chunksize=2))
+    results: list[ParseResult] = []
+    for name, outcome in zip(names, outcomes, strict=True):
+        if isinstance(outcome, str):
+            errors.append(f"{name}: {outcome}")
+        else:
+            results.append(outcome)
+    return results
+
+
+def _parse_one(path: str, parser_id: str | None, password: str | None) -> ParseResult | str:
+    try:
+        return api_parse(path, parser=parser_id, registry=default_registry(), password=password)
+    except Exception as exc:
+        return _one_line_error(exc)
+
+
 def validate_files(paths: Sequence[Path], *, jobs: int = 1) -> list[dict[str, Any]]:
     """Parse and reconcile files, returning JSON-serialisable rows."""
     if jobs == 1:
@@ -351,7 +371,12 @@ def _validate_one(path: str) -> dict[str, Any]:
     ok = bool(result.statements)
     for statement in result.statements:
         issues = reconcile(statement)
-        missing = [name for name in REQUIRED_VALIDATION_FIELDS if getattr(statement, name) is None]
+        absent = not_printed(statement)
+        missing = [
+            name
+            for name in REQUIRED_VALIDATION_FIELDS
+            if getattr(statement, name) is None and name not in absent
+        ]
         ok = ok and not issues and not missing
         accounts.append(
             {

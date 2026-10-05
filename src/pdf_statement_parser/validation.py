@@ -13,6 +13,15 @@ from pdf_statement_parser.models import Statement
 
 TOLERANCE = Decimal("0.01")
 
+#: ``Statement.extra`` key listing fields the statement format never prints, such
+#: as ``["account_number"]`` for Apple Card. Those fields are not reported missing.
+NOT_PRINTED_KEY = "not_printed"
+
+
+def not_printed(statement: Statement) -> set[str]:
+    """Names of fields the parser declared absent from this statement format."""
+    return set(statement.extra.get(NOT_PRINTED_KEY) or ())
+
 
 @dataclass(frozen=True)
 class Issue:
@@ -26,8 +35,9 @@ def reconcile(statement: Statement) -> list[Issue]:
     """Return every inconsistency found; an empty list means it reconciles."""
     issues: list[Issue] = []
 
+    absent = not_printed(statement)
     for name in ("account_number", "period_start", "period_end"):
-        if getattr(statement, name) is None:
+        if getattr(statement, name) is None and name not in absent:
             issues.append(Issue("missing_field", f"{name} is missing"))
     if statement.period_start and statement.period_end:
         if statement.period_start > statement.period_end:

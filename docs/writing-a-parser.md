@@ -35,6 +35,11 @@ Set metadata first: bank, account type, account number, statement period,
 opening and closing balances, account name, and account holder when the format
 prints them. Then parse transactions.
 
+When a format never prints a field, leave it `None` and list its name in
+`Statement.extra["not_printed"]`, for example `["account_number"]` for Apple
+Card. `reconcile()` and `statement-parser validate` then do not report it as
+missing.
+
 ## Use the sign convention
 
 `Transaction.amount` is from the account holder's point of view. Positive means
@@ -65,6 +70,24 @@ the program does not print balances or another required figure is missing.
 - `parse_date()` for common full dates.
 - `resolve_month_day()` for transaction dates that omit the year.
 - `normalize_space()` for whitespace cleanup.
+
+## Keep it fast
+
+Reading the PDF is almost all of the parse time, so parser code rarely needs
+tuning. A few rules keep it that way:
+
+- Read `page.text` and `page.lines`. Each page is extracted once and cached.
+- When you need character positions, use `page.deduped`: a cached pdfplumber
+  page with duplicate bold glyphs removed. It holds chars only; use
+  `page.plumber` for lines, rects and images.
+- Do not call pdfplumber's `Page.dedupe_chars()`. It is quadratic in the number
+  of characters and can take seconds on a dense page. After cropping, use
+  `pdf_statement_parser.document.dedupe_chars(page)`, which returns the same
+  result in near-linear time.
+- Crop a region once and reuse it rather than re-cropping for every lookup.
+
+Check with `python scripts/benchmark.py statements/`. See
+[performance.md](performance.md).
 
 ## Test with synthetic fixtures
 

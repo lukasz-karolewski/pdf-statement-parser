@@ -4,6 +4,46 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## 0.2.0 - 2026-10-04
+
+First stable release. Adds Apple Card statements; every statement in a
+645-file private corpus (585 Chase, 60 Apple Card) reconciles.
+
+### Added
+
+- Apple Card parser (`apple-card`), including co-owned accounts, Apple Card
+  Monthly Installments, returns and Daily Cash. See `docs/providers/apple.md`.
+- `Statement.extra["not_printed"]` lets a parser list fields its format never
+  prints. `reconcile()` and `validate` do not report those fields as missing.
+
+## 0.1.0b1 - 2026-10-03
+
+First beta. Parsing is 8.4 times faster on one core, with identical output on
+a 585-statement test corpus. See `docs/performance.md`.
+
+### Added
+
+- `-j/--jobs` for `parse`, `transactions` and `rewards` to parse files in
+  parallel processes. Output keeps input order.
+- `Page.deduped`: a cached pdfplumber page with duplicate glyphs removed,
+  for parsers that need character positions.
+- `document.dedupe_chars()` and `document.layout_chars()`, fast equivalents of
+  pdfplumber's `Page.dedupe_chars()` and `Page.chars`.
+- `scripts/benchmark.py` to time each parse phase and measure memory on a
+  private corpus.
+
+### Changed
+
+- Removing duplicate bold glyphs no longer uses pdfplumber's
+  `Page.dedupe_chars()`, which is quadratic in the number of characters. Dense
+  card statements that took 6 to 10 seconds now take under 0.75 seconds.
+- Char objects for text extraction are built without pdfplumber's generic
+  attribute resolver, about 2.4 times faster. This needs pdfplumber 0.11.7 or
+  later. Older releases fall back to `page.chars` automatically.
+- The Chase card rewards parser reuses the deduped first page and crops the
+  rewards box once.
+- Development status is now Beta.
+
 ## 0.1.0a2 - 2026-10-03
 
 ### Added
