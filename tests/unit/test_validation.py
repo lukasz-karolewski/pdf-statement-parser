@@ -57,3 +57,18 @@ def test_reconcile_reports_mismatches() -> None:
     assert "missing_field" in checks
     assert "period" in checks
     assert "total_deposits" in checks
+
+
+def test_reconcile_skips_fields_the_format_does_not_print() -> None:
+    statement = Statement(
+        bank="Example Bank",
+        account_type=AccountType.CREDIT_CARD,
+        account_number=None,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        extra={"not_printed": ["account_number"]},
+    )
+
+    assert reconcile(statement) == []
+    statement.extra = {}
+    assert [issue.check for issue in reconcile(statement)] == ["missing_field"]

@@ -35,6 +35,11 @@ Set metadata first: bank, account type, account number, statement period,
 opening and closing balances, account name, and account holder when the format
 prints them. Then parse transactions.
 
+When a format never prints a field, leave it `None` and list its name in
+`Statement.extra["not_printed"]`, for example `["account_number"]` for Apple
+Card. `reconcile()` and `statement-parser validate` then do not report it as
+missing.
+
 ## Use the sign convention
 
 `Transaction.amount` is from the account holder's point of view. Positive means

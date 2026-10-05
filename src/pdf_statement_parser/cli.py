@@ -22,7 +22,7 @@ from pdf_statement_parser.document import Document
 from pdf_statement_parser.exceptions import UnsupportedStatementError
 from pdf_statement_parser.models import ParseResult, Statement
 from pdf_statement_parser.registry import default_registry
-from pdf_statement_parser.validation import Issue, reconcile
+from pdf_statement_parser.validation import Issue, not_printed, reconcile
 
 log = logging.getLogger(__name__)
 
@@ -371,7 +371,12 @@ def _validate_one(path: str) -> dict[str, Any]:
     ok = bool(result.statements)
     for statement in result.statements:
         issues = reconcile(statement)
-        missing = [name for name in REQUIRED_VALIDATION_FIELDS if getattr(statement, name) is None]
+        absent = not_printed(statement)
+        missing = [
+            name
+            for name in REQUIRED_VALIDATION_FIELDS
+            if getattr(statement, name) is None and name not in absent
+        ]
         ok = ok and not issues and not missing
         accounts.append(
             {

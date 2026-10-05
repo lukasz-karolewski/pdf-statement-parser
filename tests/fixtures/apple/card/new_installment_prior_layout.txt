@@ -1,0 +1,72 @@
+Statement
+Jane Sample, jane@example.com Dec 1 — Dec 31, 2021
+Your December Balance Minimum Payment
+as of Dec 31, 2021 Payment Due Due By
+$65.00 $35.00 Jan 31, 2022
+Account Information
+If you pay your monthly balance in full every Apple Card Monthly Installments $35.00
+month, you will avoid being charged interest.
+Prior Monthly Balance $50.00
+as of Nov 30, 2021
+Prior Total Balance $60.00
+as of Nov 30, 2021
+Total Balance $640.00
+as of Dec 31, 2021
+Apple Card is issued by Example Bank USA, Sample City Branch.
+Page 1 /4
+Statement
+Jane Sample, jane@example.com Dec 1 — Dec 31, 2021
+Account Activity
+Payments
+Total payments made by Jane Sample -$50.00
+Total payments for this period -$50.00
+Transactions
+Total charges, credits, and returns by Jane Sample $30.00
+Total charges, credits, and returns for this period $30.00
+Apple Card Monthly Installments Total monthly Installment Remaining Financed
+Installment details by Jane Sample $35.00 $610.00
+Total remaining financed for account $610.00
+Daily Cash
+Total Daily Cash for Jane Sample $18.90
+Total Daily Cash to account $18.90
+Interest Charged
+— $0.00
+Total interest for this month $0.00
+Apple Card is issued by Example Bank USA, Sample City Branch.
+Page 2 /4
+Statement
+Jane Sample, jane@example.com Dec 1 — Dec 31, 2021
+Payments
+Payments made by Jane Sample
+Date Description Amount
+12/31/2021 ACH Deposit Internet transfer from account ending in 1234 -$50.00
+Total payments for this period -$50.00
+Transactions
+Transactions by Jane Sample
+Date Description Daily Cash Amount
+12/20/2021 SAMPLE HARDWARE 5 OAK AVE SPRINGFIELD 12345 IL USA 3% $0.90 $30.00
+Total Daily Cash this month $0.90
+Total charges, credits and returns $30.00
+Apple Card is issued by Example Bank USA, Sample City Branch.
+Page 3 /4
+Statement
+Jane Sample, jane@example.com Dec 1 — Dec 31, 2021
+Apple Card Monthly Installments
+Apple Card Installments by Jane Sample
+Dates Description Daily Cash Amounts
+12/04/2021 Apple Online Store Cupertino CA 3% $18.00 $600.00
+TRANSACTION #0000aaaa1111
+This months installment: $25.00
+Final installment: Nov 30, 2023
+Total financed $600.00
+Total payments and credits $0.00
+Total remaining $600.00
+01/15/2020 Apple Store Sample City CA $120.00
+TRANSACTION #2222bbbb3333
+This months installment: $10.00
+This is your final installment.
+Total financed $120.00
+Total payments and credits $110.00
+Total remaining $10.00
+Apple Card is issued by Example Bank USA, Sample City Branch.
+Page 4 /4

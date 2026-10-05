@@ -198,6 +198,7 @@ lines are added into `earned` and are not exported separately.
 
 | Bank | Statement type | Status |
 | --- | --- | --- |
+| Apple | Apple Card, including co-owned accounts and Monthly Installments | Supported. See [docs/providers/apple.md](docs/providers/apple.md). |
 | Chase | Credit cards, including rewards | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
 | Chase | Checking and savings | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |
 | Chase | Consolidated personal statements | Supported. See [docs/providers/chase.md](docs/providers/chase.md). |

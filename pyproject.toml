@@ -11,9 +11,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{ name = "Lukasz Karolewski" }]
-keywords = ["bank statement", "pdf", "parser", "transactions", "chase", "finance"]
+keywords = ["bank statement", "pdf", "parser", "transactions", "chase", "apple card", "finance"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",

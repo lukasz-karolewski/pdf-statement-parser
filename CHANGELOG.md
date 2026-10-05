@@ -4,6 +4,18 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## 0.2.0 - 2026-10-04
+
+First stable release. Adds Apple Card statements; every statement in a
+645-file private corpus (585 Chase, 60 Apple Card) reconciles.
+
+### Added
+
+- Apple Card parser (`apple-card`), including co-owned accounts, Apple Card
+  Monthly Installments, returns and Daily Cash. See `docs/providers/apple.md`.
+- `Statement.extra["not_printed"]` lets a parser list fields its format never
+  prints. `reconcile()` and `validate` do not report those fields as missing.
+
 ## 0.1.0b1 - 2026-10-03
 
 First beta. Parsing is 8.4 times faster on one core, with identical output on
